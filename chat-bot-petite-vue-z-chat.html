@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rule-Based Chatbot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/petite-vue@2"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .message-enter {
+            animation: slideIn 0.3s ease-out;
+        }
+        
+        @keyframes typing {
+            0%, 60%, 100% {
+                opacity: 0.3;
+            }
+            30% {
+                opacity: 1;
+            }
+        }
+        
+        .typing-indicator span {
+            animation: typing 1.4s infinite;
+        }
+        
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        .scroll-smooth {
+            scroll-behavior: smooth;
+        }
+        
+        /* Custom scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 3px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        
+        .dark .custom-scrollbar::-webkit-scrollbar-track {
+            background: #374151;
+        }
+        
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #6b7280;
+        }
+        
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 transition-colors duration-300">
+    <div id="app" @vue:mounted="mounted" class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl overflow-hidden transition-all duration-300">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 p-6 text-white">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+                            <i class="fas fa-robot text-2xl"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-2xl font-bold">AI Assistant</h1>
+                            <p class="text-sm opacity-90">Online • Ready to help</p>
+                        </div>
+                    </div>
+                    <button @click="toggleDarkMode" class="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-colors">
+                        <i :class="darkMode ? 'fas fa-sun' : 'fas fa-moon'"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Chat Messages -->
+            <div class="h-96 overflow-y-auto custom-scrollbar p-4 space-y-4 scroll-smooth" ref="messagesContainer">
+                <template v-for="(message, index) in messages" :key="index">
+                    <!-- User Message -->
+                    <div v-if="message.type === 'user'" class="flex justify-end message-enter">
+                        <div class="max-w-xs lg:max-w-md">
+                            <div class="bg-blue-500 text-white rounded-2xl rounded-br-sm px-4 py-3 shadow-lg">
+                                <p class="text-sm">{{ message.text }}</p>
+                            </div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1 text-right">
+                                {{ formatTime(message.timestamp) }}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Bot Message -->
+                    <div v-else class="flex justify-start message-enter">
+                        <div class="flex space-x-2 max-w-xs lg:max-w-md">
+                            <div class="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center flex-shrink-0">
+                                <i class="fas fa-robot text-gray-600 dark:text-gray-300 text-sm"></i>
+                            </div>
+                            <div>
+                                <div class="bg-gray-100 dark:bg-gray-700 rounded-2xl rounded-bl-sm px-4 py-3 shadow-lg">
+                                    <p class="text-sm text-gray-800 dark:text-gray-200">{{ message.text }}</p>
+                                </div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                    {{ formatTime(message.timestamp) }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                
+                <!-- Typing Indicator -->
+                <div v-if="isTyping" class="flex justify-start">
+                    <div class="flex space-x-2">
+                        <div class="w-8 h-8 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-robot text-gray-600 dark:text-gray-300 text-sm"></i>
+                        </div>
+                        <div class="bg-gray-100 dark:bg-gray-700 rounded-2xl rounded-bl-sm px-4 py-3 shadow-lg">
+                            <div class="typing-indicator flex space-x-1">
+                                <span class="w-2 h-2 bg-gray-400 dark:bg-gray-300 rounded-full"></span>
+                                <span class="w-2 h-2 bg-gray-400 dark:bg-gray-300 rounded-full"></span>
+                                <span class="w-2 h-2 bg-gray-400 dark:bg-gray-300 rounded-full"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quick Actions -->
+            <div v-if="messages.length === 0" class="px-4 pb-2">
+                <div class="flex flex-wrap gap-2">
+                    <button @click="sendQuickMessage('Hello')" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-full text-xs hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                        <i class="fas fa-hand-wave mr-1"></i> Hello
+                    </button>
+                    <button @click="sendQuickMessage('How are you?')" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-full text-xs hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                        <i class="fas fa-smile mr-1"></i> How are you?
+                    </button>
+                    <button @click="sendQuickMessage('Help')" class="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-full text-xs hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                        <i class="fas fa-question-circle mr-1"></i> Help
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Input Area -->
+            <div class="border-t border-gray-200 dark:border-gray-700 p-4">
+                <form @submit.prevent="sendMessage" class="flex space-x-2">
+                    <input
+                        v-model="inputMessage"
+                        type="text"
+                        placeholder="Type your message..."
+                        class="flex-1 px-4 py-3 bg-gray-100 dark:bg-gray-700 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
+                        :disabled="isTyping"
+                    >
+                    <button
+                        type="submit"
+                        :disabled="!inputMessage.trim() || isTyping"
+                        class="px-6 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-gray-600 text-white rounded-full transition-colors duration-200 flex items-center space-x-2"
+                    >
+                        <i class="fas fa-paper-plane"></i>
+                        <span>Send</span>
+                    </button>
+                </form>
+                
+                <!-- Clear Chat Button -->
+                <div class="mt-3 text-center">
+                    <button @click="clearChat" class="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
+                        <i class="fas fa-trash mr-1"></i> Clear chat history
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = PetiteVue;
+
+        createApp({
+            // Data
+            messages: [],
+            inputMessage: '',
+            isTyping: false,
+            darkMode: false,
+            
+            // Rules for the chatbot
+            rules: {
+                greetings: {
+                    patterns: ['hello', 'hi', 'hey', 'greetings', 'good morning', 'good afternoon', 'good evening'],
+                    responses: [
+                        "Hello! How can I help you today?",
+                        "Hi there! Nice to meet you!",
+                        "Hey! What's on your mind?",
+                        "Greetings! How can I assist you?"
+                    ]
+                },
+                howAreYou: {
+                    patterns: ['how are you', 'how are you doing', "how's it going"],
+                    responses: [
+                        "I'm doing great, thanks for asking! How about you?",
+                        "I'm functioning perfectly! How can I help you?",
+                        "All systems operational! What can I do for you today?"
+                    ]
+                },
+                help: {
+                    patterns: ['help', 'what can you do', 'assist', 'support'],
+                    responses: [
+                        "I can help you with various tasks! Try asking me about the weather, time, or just have a conversation.",
+                        "I'm here to assist you! I can answer questions, provide information, or just chat with you.",
+                        "I'm your AI assistant! Feel free to ask me anything or just say hello!"
+                    ]
+                },
+                weather: {
+                    patterns: ['weather', 'temperature', 'rain', 'sunny', 'cloudy'],
+                    responses: [
+                        "I don't have real-time weather data, but I hope it's nice where you are!",
+                        "Weather is always an interesting topic! I'd recommend checking a weather app for current conditions.",
+                        "I wish I could tell you the weather! Maybe try asking a weather service for accurate information."
+                    ]
+                },
+                time: {
+                    patterns: ['time', 'date', 'day', 'what time is it'],
+                    responses: [
+                        `The current time is ${new Date().toLocaleTimeString()}`,
+                        `It's ${new Date().toLocaleTimeString()} on ${new Date().toLocaleDateString()}`,
+                        `Right now it's ${new Date().toLocaleTimeString()}`
+                    ]
+                },
+                name: {
+                    patterns: ['your name', "what's your name", 'who are you'],
+                    responses: [
+                        "I'm an AI assistant, here to help you with whatever you need!",
+                        "You can call me AI Assistant. I'm here to chat and help!",
+                        "I'm your friendly AI assistant. Nice to meet you!"
+                    ]
+                },
+                thanks: {
+                    patterns: ['thank you', 'thanks', 'appreciate it'],
+                    responses: [
+                        "You're welcome! Happy to help!",
+                        "No problem at all! Is there anything else I can help with?",
+                        "My pleasure! Feel free to ask if you need anything else."
+                    ]
+                },
+                goodbye: {
+                    patterns: ['bye', 'goodbye', 'see you', 'later', 'farewell'],
+                    responses: [
+                        "Goodbye! Have a great day!",
+                        "See you later! Feel free to come back anytime!",
+                        "Take care! It was nice chatting with you!"
+                    ]
+                },
+                default: {
+                    patterns: [],
+                    responses: [
+                        "I'm not sure how to respond to that. Could you try rephrasing?",
+                        "Interesting! I'm still learning. Could you tell me more?",
+                        "I'm not sure I understand. Could you try asking differently?",
+                        "That's a new one for me! What would you like to know?"
+                    ]
+                }
+            },
+            
+            // Methods
+            mounted() {
+                // Load messages from localStorage
+                const savedMessages = localStorage.getItem('chatMessages');
+                if (savedMessages) {
+                    this.messages = JSON.parse(savedMessages);
+                }
+                
+                // Load dark mode preference
+                this.darkMode = localStorage.getItem('darkMode') === 'true';
+                this.updateDarkMode();
+                
+                // Add welcome message if no messages
+                if (this.messages.length === 0) {
+                    this.addBotMessage("Hello! I'm your AI assistant. How can I help you today?");
+                }
+                
+                // Scroll to bottom
+                this.$nextTick(() => this.scrollToBottom());
+            },
+            
+            sendMessage() {
+                if (!this.inputMessage.trim() || this.isTyping) return;
+                
+                const message = this.inputMessage.trim();
+                this.inputMessage = '';
+                
+                // Add user message
+                this.addUserMessage(message);
+                
+                // Show typing indicator
+                this.isTyping = true;
+                
+                // Simulate bot thinking time
+                setTimeout(() => {
+                    this.isTyping = false;
+                    const response = this.generateResponse(message);
+                    this.addBotMessage(response);
+                }, 1000 + Math.random() * 1000);
+            },
+            
+            sendQuickMessage(message) {
+                this.inputMessage = message;
+                this.sendMessage();
+            },
+            
+            addUserMessage(text) {
+                this.messages.push({
+                    type: 'user',
+                    text: text,
+                    timestamp: new Date()
+                });
+                this.saveMessages();
+                this.$nextTick(() => this.scrollToBottom());
+            },
+            
+            addBotMessage(text) {
+                this.messages.push({
+                    type: 'bot',
+                    text: text,
+                    timestamp: new Date()
+                });
+                this.saveMessages();
+                this.$nextTick(() => this.scrollToBottom());
+            },
+            
+            generateResponse(message) {
+                const lowerMessage = message.toLowerCase();
+                
+                // Check each rule category
+                for (const [category, rule] of Object.entries(this.rules)) {
+                    if (category === 'default') continue;
+                    
+                    for (const pattern of rule.patterns) {
+                        if (lowerMessage.includes(pattern)) {
+                            return rule.responses[Math.floor(Math.random() * rule.responses.length)];
+                        }
+                    }
+                }
+                
+                // Return default response if no pattern matches
+                return this.rules.default.responses[Math.floor(Math.random() * this.rules.default.responses.length)];
+            },
+            
+            formatTime(timestamp) {
+                const date = new Date(timestamp);
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            },
+            
+            scrollToBottom() {
+                const container = this.$refs.messagesContainer;
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            },
+            
+            saveMessages() {
+                localStorage.setItem('chatMessages', JSON.stringify(this.messages));
+            },
+            
+            clearChat() {
+                if (confirm('Are you sure you want to clear the chat history?')) {
+                    this.messages = [];
+                    localStorage.removeItem('chatMessages');
+                    this.addBotMessage("Chat history cleared. How can I help you today?");
+                }
+            },
+            
+            toggleDarkMode() {
+                this.darkMode = !this.darkMode;
+                localStorage.setItem('darkMode', this.darkMode);
+                this.updateDarkMode();
+            },
+            
+            updateDarkMode() {
+                if (this.darkMode) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

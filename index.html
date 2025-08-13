@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rule‑Based Chatbot (Vanilla JS + Tailwind)</title>
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Optional: Tailwind color config (kept minimal)
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              DEFAULT: '#3b82f6',
+              50: '#eff6ff',
+            },
+          },
+        },
+      },
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    html, body { height: 100%; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    /* Hide native scrollbar for messages */
+    .scroll-smooth::-webkit-scrollbar { width: 6px; }
+    .scroll-smooth::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 9999px; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+  <div class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-gray-200">
+      <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="h-9 w-9 rounded-2xl bg-primary/10 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-5 h-5 text-primary">
+              <path d="M12 2a7 7 0 0 0-7 7v2.586l-1.707 1.707A1 1 0 0 0 4 15h2v1a7 7 0 0 0 10.606 5.657.75.75 0 0 0-.212-1.304A6 6 0 0 1 7 14v-2a5 5 0 1 1 10 0v1.5a1.5 1.5 0 0 0 3 0V9a7 7 0 0 0-7-7Z"/>
+            </svg>
+          </div>
+          <div>
+            <h1 class="text-lg font-semibold">Rule‑Based Chatbot</h1>
+            <p class="text-xs text-gray-500">Vanilla JS • Tailwind • No backend</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="clearBtn" class="px-3 py-1.5 text-sm rounded-xl border border-gray-200 hover:bg-gray-100">Clear</button>
+          <button id="themeBtn" class="px-3 py-1.5 text-sm rounded-xl border border-gray-200 hover:bg-gray-100">Light</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main -->
+    <main class="flex-1">
+      <div class="max-w-5xl mx-auto px-4 grid md:grid-cols-3 gap-4 mt-4">
+        <!-- Chat Panel -->
+        <section class="md:col-span-2 rounded-2xl bg-white border border-gray-200 shadow-sm flex flex-col h-[75vh]">
+          <div id="messages" class="flex-1 overflow-y-auto p-4 space-y-3 scroll-smooth" aria-live="polite"></div>
+
+          <!-- Quick Suggestions -->
+          <div id="suggestions" class="px-4 pb-2 pt-1 flex flex-wrap gap-2 border-t border-gray-100"></div>
+
+          <!-- Composer -->
+          <form id="chatForm" class="p-3 flex gap-2 border-t border-gray-200">
+            <input id="userInput" type="text" autocomplete="off" placeholder="Type a message (try: pricing, refund, hours, help)" class="flex-1 px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-primary/50" />
+            <button class="px-4 py-3 rounded-xl bg-primary text-white font-medium disabled:opacity-50" type="submit">Send</button>
+          </form>
+        </section>
+
+        <!-- Config / Rules Panel -->
+        <aside class="rounded-2xl bg-white border border-gray-200 shadow-sm p-4 space-y-4">
+          <h2 class="font-semibold">Rules</h2>
+          <p class="text-sm text-gray-600">This demo uses a lightweight rule engine. Edit keywords/responses below and click <span class="font-medium">Apply</span>.</p>
+
+          <textarea id="rulesEditor" class="w-full h-56 text-sm font-mono p-3 border border-gray-200 rounded-xl" spellcheck="false"></textarea>
+          <div class="flex items-center gap-2">
+            <button id="applyRules" class="px-3 py-2 rounded-xl bg-gray-900 text-white text-sm">Apply</button>
+            <span id="rulesStatus" class="text-xs text-gray-500"></span>
+          </div>
+
+          <div class="border-t pt-3">
+            <h3 class="font-semibold text-sm">State</h3>
+            <pre id="stateView" class="text-xs bg-gray-50 p-2 rounded-lg border border-gray-100 overflow-x-auto"></pre>
+          </div>
+
+          <div class="border-t pt-3 text-xs text-gray-500">
+            <p>Tips:</p>
+            <ul class="list-disc pl-4 space-y-1">
+              <li>Use <code>/help</code> for commands.</li>
+              <li>Rules match on keywords and regex. Order matters (top wins).</li>
+              <li>Add <code>suggestions</code> for clickable chips.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-6 text-center text-xs text-gray-500">© <span id="year"></span> Rule‑Bot Demo</footer>
+  </div>
+
+  <script>
+    // ------------------------
+    // Demo RULES (editable)
+    // ------------------------
+    const DEFAULT_RULES = [
+      {
+        id: 'help',
+        description: 'Slash command: /help',
+        triggers: { keywords: ['/help'], regex: [] },
+        response: `Here are some things you can ask me:\n• pricing — see our plans\n• hours — support hours\n• refund — refund policy\n• human — talk to a person\n• reset — clear context`,
+        suggestions: ['pricing', 'hours', 'refund', 'human']
+      },
+      {
+        id: 'greeting',
+        description: 'Simple greeting',
+        triggers: { keywords: ['hello', 'hi', 'hey', 'namaste'], regex: [] },
+        response: 'Hey! I\'m your helper bot. Ask about pricing, refunds, support hours, or type /help.',
+        suggestions: ['pricing', 'hours', 'refund']
+      },
+      {
+        id: 'pricing',
+        description: 'Pricing information',
+        triggers: { keywords: ['price', 'pricing', 'cost', 'charges', 'plan'], regex: [] },
+        response: 'Our plans: Starter ₹999/mo • Pro ₹2,999/mo • Business ₹6,999/mo. Pay annually and save 15%.',
+        contextUpdates: { lastTopic: 'pricing' },
+        suggestions: ['What\'s included?', 'Do you have a free trial?', 'Refund policy']
+      },
+      {
+        id: 'hours',
+        description: 'Support hours',
+        triggers: { keywords: ['hours', 'timing', 'support time', 'when open'], regex: [] },
+        response: 'Support hours: Mon–Sat, 10:00–18:00 IST. Average response time: under 2 hours.',
+        contextUpdates: { lastTopic: 'hours' },
+        suggestions: ['Talk to human', 'Pricing', 'Refund']
+      },
+      {
+        id: 'refund',
+        description: 'Refund policy',
+        triggers: { keywords: ['refund', 'return', 'money back'], regex: [] },
+        response: 'Refunds: 14‑day no‑questions‑asked refund on first purchase. After that, pro‑rated refunds apply.',
+        contextUpdates: { lastTopic: 'refund' },
+        suggestions: ['How to request refund?', 'Talk to human']
+      },
+      {
+        id: 'contact-human',
+        description: 'Handoff to human',
+        triggers: { keywords: ['human', 'agent', 'representative', 'support person'], regex: [] },
+        response: 'Sure — I\'ve queued this for a human agent. Share your email/WhatsApp so we can reach you soon.',
+        contextUpdates: { needsHandoff: true },
+        suggestions: ['Share email', 'Share WhatsApp']
+      },
+      {
+        id: 'email-capture',
+        description: 'Capture email with regex',
+        triggers: { keywords: [], regex: ['\\b[\\w.-]+@[\\w.-]+\\.[A-Za-z]{2,6}\\b'] },
+        condition: (ctx) => ctx.needsHandoff === true,
+        response: (match, ctx) => `Thanks! We\'ll contact you at **${match[0]}** shortly. Anything else?`,
+        contextUpdates: (match) => ({ needsHandoff: false, email: match[0] }),
+        suggestions: ['pricing', 'refund', 'No, thanks']
+      },
+      {
+        id: 'contextual-followup',
+        description: 'If user asks “what\'s included?” after pricing',
+        triggers: { keywords: ['what\'s included', 'features', 'benefits'], regex: [] },
+        condition: (ctx) => ctx.lastTopic === 'pricing',
+        response: 'Starter: basic widgets • Pro: automations • Business: multi‑user + priority support.',
+      },
+      {
+        id: 'reset',
+        description: 'Reset context',
+        triggers: { keywords: ['reset', 'clear context'], regex: [] },
+        response: 'Context cleared. How can I help now?',
+        contextUpdates: { lastTopic: null, needsHandoff: false, email: null }
+      },
+      {
+        id: 'fallback',
+        description: 'Fallback when nothing matches',
+        triggers: { keywords: [], regex: [] },
+        response: (text) => `I\'m not sure about “${text}”. Try /help or ask about pricing, hours, or refund.`,
+        suggestions: ['pricing', 'hours', 'refund', '/help']
+      }
+    ];
+
+    // ------------------------
+    // Simple RULE ENGINE
+    // ------------------------
+    const state = {
+      ctx: { lastTopic: null, needsHandoff: false, email: null },
+      rules: [...DEFAULT_RULES],
+      history: []
+    };
+
+    const els = {
+      messages: document.getElementById('messages'),
+      chatForm: document.getElementById('chatForm'),
+      userInput: document.getElementById('userInput'),
+      suggestions: document.getElementById('suggestions'),
+      rulesEditor: document.getElementById('rulesEditor'),
+      applyRules: document.getElementById('applyRules'),
+      rulesStatus: document.getElementById('rulesStatus'),
+      stateView: document.getElementById('stateView'),
+      themeBtn: document.getElementById('themeBtn'),
+      clearBtn: document.getElementById('clearBtn'),
+      year: document.getElementById('year'),
+    };
+
+    els.year.textContent = new Date().getFullYear();
+
+    function sanitize(str) {
+      const div = document.createElement('div');
+      div.textContent = String(str);
+      return div.innerHTML;
+    }
+
+    function addMessage(role, html, suggestions = []) {
+      const wrap = document.createElement('div');
+      wrap.className = 'flex ' + (role === 'user' ? 'justify-end' : 'justify-start');
+
+      const bubble = document.createElement('div');
+      bubble.className = (role === 'user')
+        ? 'max-w-[80%] rounded-2xl px-4 py-3 bg-primary text-white shadow'
+        : 'max-w-[80%] rounded-2xl px-4 py-3 bg-gray-100 text-gray-900 shadow';
+
+      bubble.innerHTML = html;
+      wrap.appendChild(bubble);
+      els.messages.appendChild(wrap);
+      els.messages.scrollTop = els.messages.scrollHeight;
+
+      renderSuggestions(suggestions);
+    }
+
+    function renderSuggestions(items = []) {
+      els.suggestions.innerHTML = '';
+      items.forEach(txt => {
+        const btn = document.createElement('button');
+        btn.className = 'text-sm px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-100';
+        btn.textContent = txt;
+        btn.addEventListener('click', () => sendUserText(txt));
+        els.suggestions.appendChild(btn);
+      });
+    }
+
+    function updateStateView() {
+      els.stateView.textContent = JSON.stringify(state.ctx, null, 2);
+    }
+
+    function normalize(text) {
+      return text.toLowerCase().trim();
+    }
+
+    function matchRule(text) {
+      const n = normalize(text);
+
+      for (const rule of state.rules) {
+        // Optional condition gate
+        if (typeof rule.condition === 'function' && !rule.condition(state.ctx)) {
+          continue;
+        }
+
+        // Regex match first (if any)
+        if (rule.triggers?.regex?.length) {
+          for (const pattern of rule.triggers.regex) {
+            try {
+              const re = new RegExp(pattern, 'i');
+              const match = n.match(re);
+              if (match) return { rule, match };
+            } catch (e) {
+              console.warn('Invalid regex in rule', rule.id, e);
+            }
+          }
+        }
+
+        // Keyword includes
+        if (rule.triggers?.keywords?.length) {
+          for (const kw of rule.triggers.keywords) {
+            if (n.includes(kw.toLowerCase())) {
+              return { rule, match: null };
+            }
+          }
+        }
+      }
+
+      // If nothing matched, return fallback (assumed last)
+      const fallback = state.rules.find(r => r.id === 'fallback') || state.rules[state.rules.length - 1];
+      return { rule: fallback, match: null };
+    }
+
+    function applyContextUpdates(rule, match) {
+      if (!rule.contextUpdates) return;
+      const updates = (typeof rule.contextUpdates === 'function') ? rule.contextUpdates(match, state.ctx) : rule.contextUpdates;
+      Object.assign(state.ctx, updates);
+      updateStateView();
+    }
+
+    function respondTo(text) {
+      const { rule, match } = matchRule(text);
+      let reply = '';
+
+      if (typeof rule.response === 'function') {
+        reply = sanitize(rule.response(match || text, state.ctx));
+      } else {
+        reply = sanitize(rule.response);
+      }
+
+      addMessage('bot', reply, rule.suggestions || []);
+      applyContextUpdates(rule, match);
+
+      state.history.push({ t: Date.now(), user: text, rule: rule.id });
+    }
+
+    function sendUserText(text) {
+      if (!text) return;
+      addMessage('user', sanitize(text));
+      respondTo(text);
+    }
+
+    // Form submit
+    els.chatForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const text = els.userInput.value;
+      els.userInput.value = '';
+      sendUserText(text);
+    });
+
+    // Load default rules JSON in editor
+    function loadRulesEditor() {
+      els.rulesEditor.value = JSON.stringify(state.rules, null, 2);
+    }
+
+    // Apply rules from editor
+    els.applyRules.addEventListener('click', () => {
+      try {
+        const next = JSON.parse(els.rulesEditor.value);
+        if (!Array.isArray(next)) throw new Error('Rules must be an array');
+        state.rules = next;
+        els.rulesStatus.textContent = 'Applied ✓';
+        setTimeout(() => (els.rulesStatus.textContent = ''), 1200);
+      } catch (err) {
+        els.rulesStatus.textContent = 'Invalid JSON: ' + err.message;
+      }
+    });
+
+    // Theme toggle
+    let dark = false;
+    function setTheme() {
+      document.documentElement.classList.toggle('dark', dark);
+      if (dark) {
+        document.body.classList.add('bg-gray-900', 'text-gray-50');
+        document.body.classList.remove('bg-gray-50', 'text-gray-900');
+        els.themeBtn.textContent = 'Dark';
+      } else {
+        document.body.classList.add('bg-gray-50', 'text-gray-900');
+        document.body.classList.remove('bg-gray-900', 'text-gray-50');
+        els.themeBtn.textContent = 'Light';
+      }
+    }
+    els.themeBtn.addEventListener('click', () => { dark = !dark; setTheme(); });
+
+    // Clear chat
+    els.clearBtn.addEventListener('click', () => {
+      els.messages.innerHTML = '';
+      renderSuggestions([]);
+      state.ctx = { lastTopic: null, needsHandoff: false, email: null };
+      updateStateView();
+      addMessage('bot', 'Chat cleared. Type /help to see options.');
+    });
+
+    // Boot
+    function boot() {
+      setTheme();
+      loadRulesEditor();
+      updateStateView();
+      addMessage('bot', 'Hi! I\'m a rule‑based bot. Ask me about pricing, hours, or refund. Type /help for commands.', ['pricing', 'hours', 'refund', '/help']);
+    }
+
+    boot();
+  </script>
+</body>
+</html>
