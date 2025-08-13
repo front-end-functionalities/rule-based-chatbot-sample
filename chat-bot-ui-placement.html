@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chatbot Widget</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Petite Vue -->
+  <script src="https://unpkg.com/petite-vue@2"></script>
+  <!-- Font Awesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    html, body { 
+      height: 100%; 
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; 
+    }
+    
+    /* Custom scrollbar */
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { 
+      background: #cbd5e1; 
+      border-radius: 9999px; 
+    }
+    .dark .custom-scrollbar::-webkit-scrollbar-thumb { 
+      background: #4b5563; 
+    }
+    
+    /* Animation for messages */
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .message-enter {
+      animation: slideIn 0.3s ease-out;
+    }
+    
+    /* Typing indicator animation */
+    @keyframes typing {
+      0%, 60%, 100% { opacity: 0.3; }
+      30% { opacity: 1; }
+    }
+    
+    .typing-indicator span {
+      animation: typing 1.4s infinite;
+    }
+    
+    .typing-indicator span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+    
+    .typing-indicator span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+    
+    /* Chat widget animations */
+    @keyframes widgetOpen {
+      from {
+        opacity: 0;
+        transform: scale(0.8) translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+    
+    .widget-open {
+      animation: widgetOpen 0.3s ease-out;
+    }
+    
+    /* Pulse animation for chat icon */
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+      }
+      70% {
+        box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+      }
+    }
+    
+    .pulse {
+      animation: pulse 2s infinite;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 transition-colors duration-300">
+  <!-- Main content (placeholder for your website) -->
+  <div class="min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-4xl mx-auto text-center">
+      <h1 class="text-4xl font-bold mb-4">Welcome to Our Website</h1>
+      <p class="text-lg text-gray-600 mb-8">This is a demo page showcasing the chatbot widget.</p>
+      <p class="text-gray-500">Click the chat icon in the bottom right corner to start a conversation!</p>
+    </div>
+  </div>
+
+  <!-- Chatbot Widget -->
+  <div id="app" @vue:mounted="mounted">
+    <!-- Floating Chat Icon -->
+    <button 
+      v-if="!isChatOpen"
+      @click="openChat"
+      class="fixed bottom-6 right-6 w-16 h-16 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-300 pulse z-50"
+      aria-label="Open chat"
+    >
+      <i class="fas fa-comment text-2xl"></i>
+    </button>
+
+    <!-- Chat Widget -->
+    <div 
+      v-if="isChatOpen"
+      class="fixed bottom-6 right-6 w-96 h-[600px] bg-white rounded-2xl shadow-2xl flex flex-col border border-gray-200 dark:bg-gray-800 dark:border-gray-700 widget-open z-50"
+    >
+      <!-- Header -->
+      <div class="bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-600 dark:to-purple-700 p-4 rounded-t-2xl">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
+              <i class="fas fa-robot text-xl"></i>
+            </div>
+            <div>
+              <h3 class="text-white font-semibold">AI Assistant</h3>
+              <p class="text-white/80 text-sm">Online • Ready to help</p>
+            </div>
+          </div>
+          <button 
+            @click="closeChat"
+            class="text-white/80 hover:text-white transition-colors"
+            aria-label="Close chat"
+          >
+            <i class="fas fa-times text-xl"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Messages Container -->
+      <div class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar" ref="messagesContainer">
+        <template v-for="(message, index) in messages" :key="index">
+          <!-- User Message -->
+          <div v-if="message.role === 'user'" class="flex justify-end message-enter">
+            <div class="max-w-[80%] rounded-2xl px-4 py-3 bg-blue-500 text-white shadow">
+              <p>{{ message.content }}</p>
+            </div>
+          </div>
+          
+          <!-- Bot Message -->
+          <div v-else class="flex justify-start message-enter">
+            <div class="max-w-[80%] rounded-2xl px-4 py-3 bg-gray-100 text-gray-900 shadow dark:bg-gray-700 dark:text-gray-100">
+              <p v-html="message.content"></p>
+            </div>
+          </div>
+        </template>
+        
+        <!-- Typing Indicator -->
+        <div v-if="isTyping" class="flex justify-start">
+          <div class="max-w-[80%] rounded-2xl px-4 py-3 bg-gray-100 text-gray-900 shadow dark:bg-gray-700 dark:text-gray-100">
+            <div class="typing-indicator flex space-x-1">
+              <span class="w-2 h-2 bg-gray-400 dark:bg-gray-300 rounded-full"></span>
+              <span class="w-2 h-2 bg-gray-400 dark:bg-gray-300 rounded-full"></span>
+              <span class="w-2 h-2 bg-gray-400 dark:bg-gray-300 rounded-full"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Quick Suggestions -->
+      <div v-if="suggestions.length > 0" class="px-4 pb-2 pt-1 flex flex-wrap gap-2 border-t border-gray-100 dark:border-gray-700">
+        <button 
+          v-for="(suggestion, index) in suggestions" 
+          :key="index"
+          @click="sendSuggestion(suggestion)"
+          class="text-sm px-3 py-1.5 rounded-xl border border-gray-200 hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800 dark:text-gray-300"
+        >
+          {{ suggestion }}
+        </button>
+      </div>
+      
+      <!-- Input Form -->
+      <form @submit.prevent="sendMessage" class="p-3 flex gap-2 border-t border-gray-200 dark:border-gray-700">
+        <input 
+          v-model="inputText"
+          type="text" 
+          autocomplete="off" 
+          placeholder="Type a message..." 
+          class="flex-1 px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:ring-blue-400/50"
+          :disabled="isTyping"
+        />
+        <button 
+          type="submit" 
+          class="px-4 py-3 rounded-xl bg-blue-500 text-white font-medium disabled:opacity-50 hover:bg-blue-600 transition-colors"
+          :disabled="!inputText.trim() || isTyping"
+        >
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, reactive, computed, ref, nextTick } = PetiteVue;
+
+    createApp({
+      // Data
+      messages: [],
+      inputText: '',
+      rules: [],
+      context: { lastTopic: null, needsHandoff: false, email: null },
+      suggestions: [],
+      isTyping: false,
+      isChatOpen: false,
+      messagesContainer: null,
+      
+      // Methods
+      mounted() {
+        this.messagesContainer = this.$refs.messagesContainer;
+        this.loadDefaultRules();
+        
+        // Check if chat was previously opened
+        const wasOpened = localStorage.getItem('chatWasOpened');
+        if (wasOpened) {
+          this.isChatOpen = true;
+          this.loadChatHistory();
+        }
+      },
+      
+      loadDefaultRules() {
+        this.rules = [
+          {
+            id: 'help',
+            description: 'Slash command: /help',
+            triggers: { keywords: ['/help'], regex: [] },
+            response: `Here are some things you can ask me:\n• pricing — see our plans\n• hours — support hours\n• refund — refund policy\n• human — talk to a person\n• reset — clear context`,
+            suggestions: ['pricing', 'hours', 'refund', 'human']
+          },
+          {
+            id: 'greeting',
+            description: 'Simple greeting',
+            triggers: { keywords: ['hello', 'hi', 'hey', 'namaste'], regex: [] },
+            response: 'Hey! I\'m your helper bot. Ask about pricing, refunds, support hours, or type /help.',
+            suggestions: ['pricing', 'hours', 'refund']
+          },
+          {
+            id: 'pricing',
+            description: 'Pricing information',
+            triggers: { keywords: ['price', 'pricing', 'cost', 'charges', 'plan'], regex: [] },
+            response: 'Our plans: Starter ₹999/mo • Pro ₹2,999/mo • Business ₹6,999/mo. Pay annually and save 15%.',
+            contextUpdates: { lastTopic: 'pricing' },
+            suggestions: ['What\'s included?', 'Do you have a free trial?', 'Refund policy']
+          },
+          {
+            id: 'hours',
+            description: 'Support hours',
+            triggers: { keywords: ['hours', 'timing', 'support time', 'when open'], regex: [] },
+            response: 'Support hours: Mon–Sat, 10:00–18:00 IST. Average response time: under 2 hours.',
+            contextUpdates: { lastTopic: 'hours' },
+            suggestions: ['Talk to human', 'Pricing', 'Refund']
+          },
+          {
+            id: 'refund',
+            description: 'Refund policy',
+            triggers: { keywords: ['refund', 'return', 'money back'], regex: [] },
+            response: 'Refunds: 14-day no-questions-asked refund on first purchase. After that, pro-rated refunds apply.',
+            contextUpdates: { lastTopic: 'refund' },
+            suggestions: ['How to request refund?', 'Talk to human']
+          },
+          {
+            id: 'contact-human',
+            description: 'Handoff to human',
+            triggers: { keywords: ['human', 'agent', 'representative', 'support person'], regex: [] },
+            response: 'Sure — I\'ve queued this for a human agent. Share your email/WhatsApp so we can reach you soon.',
+            contextUpdates: { needsHandoff: true },
+            suggestions: ['Share email', 'Share WhatsApp']
+          },
+          {
+            id: 'email-capture',
+            description: 'Capture email with regex',
+            triggers: { keywords: [], regex: ['\\b[\\w.-]+@[\\w.-]+\\.[A-Za-z]{2,6}\\b'] },
+            condition: (ctx) => ctx.needsHandoff === true,
+            response: (match, ctx) => `Thanks! We\'ll contact you at <strong>${match[0]}</strong> shortly. Anything else?`,
+            contextUpdates: (match) => ({ needsHandoff: false, email: match[0] }),
+            suggestions: ['pricing', 'refund', 'No, thanks']
+          },
+          {
+            id: 'contextual-followup',
+            description: 'If user asks "what\'s included?" after pricing',
+            triggers: { keywords: ['what\'s included', 'features', 'benefits'], regex: [] },
+            condition: (ctx) => ctx.lastTopic === 'pricing',
+            response: 'Starter: basic widgets • Pro: automations • Business: multi-user + priority support.',
+          },
+          {
+            id: 'reset',
+            description: 'Reset context',
+            triggers: { keywords: ['reset', 'clear context'], regex: [] },
+            response: 'Context cleared. How can I help now?',
+            contextUpdates: { lastTopic: null, needsHandoff: false, email: null }
+          },
+          {
+            id: 'fallback',
+            description: 'Fallback when nothing matches',
+            triggers: { keywords: [], regex: [] },
+            response: (text) => `I\'m not sure about "${text}". Try /help or ask about pricing, hours, or refund.`,
+            suggestions: ['pricing', 'hours', 'refund', '/help']
+          }
+        ];
+      },
+      
+      openChat() {
+        this.isChatOpen = true;
+        localStorage.setItem('chatWasOpened', 'true');
+        
+        // Add welcome message if no messages
+        if (this.messages.length === 0) {
+          this.addBotMessage('Hi! I\'m your AI assistant. How can I help you today?', ['pricing', 'hours', 'refund', '/help']);
+        }
+      },
+      
+      closeChat() {
+        this.isChatOpen = false;
+      },
+      
+      sanitize(str) {
+        const div = document.createElement('div');
+        div.textContent = String(str);
+        return div.innerHTML;
+      },
+      
+      addMessage(role, content, suggestions = []) {
+        this.messages.push({ role, content, timestamp: new Date() });
+        this.suggestions = suggestions;
+        this.saveChatHistory();
+        this.scrollToBottom();
+      },
+      
+      addUserMessage(content) {
+        this.addMessage('user', content);
+      },
+      
+      addBotMessage(content, suggestions = []) {
+        this.isTyping = true;
+        
+        // Simulate bot thinking time
+        setTimeout(() => {
+          this.isTyping = false;
+          this.addMessage('bot', content, suggestions);
+        }, 800 + Math.random() * 800);
+      },
+      
+      sendSuggestion(text) {
+        this.inputText = text;
+        this.sendMessage();
+      },
+      
+      sendMessage() {
+        if (!this.inputText.trim() || this.isTyping) return;
+        
+        const text = this.inputText.trim();
+        this.inputText = '';
+        
+        this.addUserMessage(text);
+        this.respondTo(text);
+      },
+      
+      normalize(text) {
+        return text.toLowerCase().trim();
+      },
+      
+      matchRule(text) {
+        const n = this.normalize(text);
+        
+        for (const rule of this.rules) {
+          // Optional condition gate
+          if (typeof rule.condition === 'function' && !rule.condition(this.context)) {
+            continue;
+          }
+          
+          // Regex match first (if any)
+          if (rule.triggers?.regex?.length) {
+            for (const pattern of rule.triggers.regex) {
+              try {
+                const re = new RegExp(pattern, 'i');
+                const match = n.match(re);
+                if (match) return { rule, match };
+              } catch (e) {
+                console.warn('Invalid regex in rule', rule.id, e);
+              }
+            }
+          }
+          
+          // Keyword includes
+          if (rule.triggers?.keywords?.length) {
+            for (const kw of rule.triggers.keywords) {
+              if (n.includes(kw.toLowerCase())) {
+                return { rule, match: null };
+              }
+            }
+          }
+        }
+        
+        // If nothing matched, return fallback (assumed last)
+        const fallback = this.rules.find(r => r.id === 'fallback') || this.rules[this.rules.length - 1];
+        return { rule: fallback, match: null };
+      },
+      
+      applyContextUpdates(rule, match) {
+        if (!rule.contextUpdates) return;
+        
+        const updates = typeof rule.contextUpdates === 'function' 
+          ? rule.contextUpdates(match, this.context) 
+          : rule.contextUpdates;
+          
+        Object.assign(this.context, updates);
+      },
+      
+      respondTo(text) {
+        const { rule, match } = this.matchRule(text);
+        
+        let reply = '';
+        if (typeof rule.response === 'function') {
+          reply = this.sanitize(rule.response(match || text, this.context));
+        } else {
+          reply = this.sanitize(rule.response);
+        }
+        
+        this.addBotMessage(reply, rule.suggestions || []);
+        this.applyContextUpdates(rule, match);
+      },
+      
+      clearChat() {
+        this.messages = [];
+        this.suggestions = [];
+        this.context = { lastTopic: null, needsHandoff: false, email: null };
+        localStorage.removeItem('chatHistory');
+        this.addBotMessage('Chat cleared. Type /help to see options.');
+      },
+      
+      saveChatHistory() {
+        if (this.messages.length > 0) {
+          localStorage.setItem('chatHistory', JSON.stringify(this.messages));
+        }
+      },
+      
+      loadChatHistory() {
+        const saved = localStorage.getItem('chatHistory');
+        if (saved) {
+          this.messages = JSON.parse(saved);
+          this.scrollToBottom();
+        }
+      },
+      
+      scrollToBottom() {
+        nextTick(() => {
+          if (this.messagesContainer) {
+            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+          }
+        });
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
