@@ -273,5 +273,5 @@
     console.log('Setting WhatsApp message link');
     const chatBotUserInput = document.getElementById('chatbotUserInput').value;
     const chatBotWaMessageBtn = document.getElementById('chatbotWaSendBtnd');
-    chatBotWaMessageBtn.href = `https://wa.me/7034763747?text=${encodeURIComponent(chatBotUserInput)}`;
+    chatBotWaMessageBtn.href = `https://wa.me/5999999999?text=${encodeURIComponent(chatBotUserInput)}`;
   }
